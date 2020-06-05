@@ -1,0 +1,168 @@
+#include "TsubuyakiSoup_mod.hsp"
+#include "key.hsp"
+
+;タイマーアプリ
+;By chips_net(minato86)
+
+title "ツイートタイマー"
+screen 0,300,300 ;画面設定
+sec = 0 ;秒数初期値
+min = 0 ;分数初期値
+hour = 0 ;時間初期値
+
+*Twitter認証
+	exist "Token.txt"
+	if strsize = -1 {
+		dialog "まずはTwitter認証を行います。"
+		goto *ツイート認証
+	} else {
+		sdim tokenTxt,strsize+1
+		bload "Token.txt",tokenTxt
+		notesel tokenTxt
+		noteget ACCESS_TOKEN,1
+		noteget ACCESS_SECRET,2
+		noteunsel
+	}
+
+*ツイート連投禁止ダイアログ
+	dialog "ツイートボタンのクリックは、連続で行わないようにお願いします。"
+
+*メイン
+	cls
+	bot = "スタート"
+	pos 80,120
+	mes ""+hour+" 時間 "+min+" 分 "+sec+" 秒 "
+	pos 110,160
+	button bot,*スタート直後
+	button "ツイート",*ツイート処理
+	stop
+
+*スタート直後
+	cls
+	bot = "ストップ"
+	pos 80,120
+	mes ""+hour+" 時間 "+min+" 分 "+sec+" 秒 "
+	pos 110,160
+	button bot,*停止
+	wait 100
+	sec = sec + 1
+	cls
+	pos 80,120
+	mes ""+hour+" 時間 "+min+" 分 "+sec+" 秒 "
+	pos 110,160
+	button bot,*停止
+	await 1000
+	goto *秒計算
+	
+*スタート後
+	cls
+	pos 80,120
+	mes ""+hour+" 時間 "+min+" 分 "+sec+" 秒 "
+	pos 110,160
+	button bot,*停止
+	await 1000
+	goto *秒計算
+
+*停止
+	goto *メイン
+	
+*秒計算
+	sec = sec + 1
+	if sec >= 60 {
+		sec = 0
+		min = min + 1
+		goto *分計算
+	} else {
+		goto *分計算
+	}
+	
+*分計算
+	if min >= 60 {
+		hour = hour + 1
+		min = 0
+		goto *時間計算
+	} else {
+		goto *時間計算
+	}
+
+*時間計算
+	if hour = 60 {
+		dialog "上限に達しました。",1,"停止"
+		goto *リセット画面
+	} else {
+		goto *スタート後
+	}
+
+*リセット画面
+	cls
+	bot = "リセット"
+	pos 80,120
+	mes ""+hour+" 時間 "+min+" 分 "+sec+" 秒 "
+	pos 110,160
+	button bot,*リセット処理
+	stop
+
+*リセット処理
+	sec = 0
+	min = 0
+	hour = 0
+	goto *メイン
+
+*ツイート処理
+	tCupInit "hiraganaPCclient", CONSUMER_KEY, CONSUMER_SECRET, 10
+	setAccessToken ACCESS_TOKEN, ACCESS_SECRET
+
+	tweet ""+hour+" 時間 "+min+" 分 "+sec+" 秒 を計測しました。 #ツイートタイマー"
+	goto *メイン
+
+*ツイート認証
+	screen 1,200,200
+
+	PIN = ""
+	
+	pos 50,80
+	input PIN,100,20
+	pos 70,100
+	button "OK",*トークン取得
+	
+	dialog "ツイッター認証を行います。\n画面に従って認証し、PINコードをソフトに入力してください"
+	tCupInit "hiraganaPCclient", CONSUMER_KEY, CONSUMER_SECRET, 10
+	address = getAuthorizeAddress()
+
+	if address != "Error"{
+		exec address,16
+	} else {
+		dialog "取得に失敗したため終了します"
+	}
+
+	stop
+
+*トークン取得
+	userdata = ""
+	ACCESS_TOKEN = ""
+	ACCESS_SECRET = ""
+	
+	publishAccessToken ACCESS_TOKEN,ACCESS_SECRET,userdata,PIN
+
+	if userdata = "" {
+		dialog "正常に認証できませんでした。PINが間違っている可能性があります。"
+		dialog "ソフトを終了します。\n再起動してやり直してください。"
+		end
+	} else { 
+
+		sdim savetext,1024
+		savetext += userdata+"\n"
+		savetext += ACCESS_TOKEN+"\n"
+		savetext += ACCESS_SECRET
+
+		exist "Token.txt"
+		if strsize > 0:delete "Token.txt"
+		bsave "Token.txt",savetext,strlen(savetext)
+
+		dialog "認証情報を保存しました。\nこれ以降は再認証の必要はありません。"
+		dialog "ソフトを終了します。\nもう一度起動すると利用が開始できます。"
+		end
+		
+	}
+	
+	stop
